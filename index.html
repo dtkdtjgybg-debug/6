@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ドーラ婆さんの『40秒で支度しな！』</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+    background: #f5f5f5;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin: 10px 0;
+  }
+
+  #game-container {
+    width: 300px;
+    margin: 0 auto;
+    background: #f5f5f5;
+    display: none;
+  }
+
+  #controls {
+    margin-bottom: 5px;
+  }
+
+  button {
+    padding: 6px 12px;
+    font-size: 14px;
+    margin: 3px;
+  }
+
+  #timer {
+    margin-top: 5px;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  #status {
+    margin-top: 5px;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    line-height: 1;
+  }
+
+  #puzzle {
+    display: none;
+    gap: 2px;
+    margin-top: 10px;
+    touch-action: manipulation;
+  }
+
+  .tile {
+    position: relative;
+    background-repeat: no-repeat;
+    border: 1px solid #999;
+    box-sizing: border-box;
+  }
+
+  .tile.selected {
+    outline: 2px solid #ff5722;
+  }
+
+  #result-image {
+    margin: 0 auto;
+    padding: 0;
+    line-height: 0;
+    width: 300px;
+  }
+
+  #result-image img {
+    display: block;
+    margin: 0;
+    padding: 0;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>ドーラ婆さんの『40秒で支度しな！』</h1>
+
+<!-- ★ 最初の難易度選択画面 -->
+<div id="select-level">
+  <button onclick="selectLevel(3,3)">9ピース（3×3）</button>
+  <button onclick="selectLevel(4,3)">12ピース（4×3）</button>
+  <button onclick="selectLevel(5,3)">15ピース（5×3）</button>
+</div>
+
+<div id="game-container">
+  <div id="controls">
+    <button id="start-btn">40秒で支度しな！</button>
+    <div id="timer">残り時間: 40.0秒</div>
+    <div id="status"></div>
+  </div>
+
+  <div id="puzzle"></div>
+
+  <div id="result-image">
+    <img src="image/imageA.png" width="300" height="300">
+  </div>
+</div>
+
+<script>
+/* ★ 服装画像 */
+const outfits = [];
+for (let i = 1; i <= 28; i++) {
+  outfits.push(`image/outfit${i}.png`);
+}
+
+let rows = 3;
+let cols = 3;
+
+const puzzleEl = document.getElementById('puzzle');
+const startBtn = document.getElementById('start-btn');
+const timerEl = document.getElementById('timer');
+const statusEl = document.getElementById('status');
+const resultImageEl = document.getElementById('result-image');
+const gameContainer = document.getElementById('game-container');
+const selectLevelEl = document.getElementById('select-level');
+
+let currentOutfit = null;
+let tiles = [];
+let correctOrder = [];
+let timerId = null;
+let timeLeft = 40.0;
+let firstSelectedIndex = null;
+let gameActive = false;
+
+/* ★ 難易度選択 */
+function selectLevel(r, c) {
+  rows = r;
+  cols = c;
+
+  selectLevelEl.style.display = "none";
+  gameContainer.style.display = "block";
+
+  puzzleEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+  const pieceHeight = Math.floor(300 / rows) - 5;
+  puzzleEl.style.gridAutoRows = pieceHeight + "px";
+
+  resultImageEl.innerHTML = `<img src="image/imageA.png" width="300" height="300">`;
+}
+
+/* ★ シャッフル */
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+startBtn.addEventListener('click', startGame);
+
+function startGame() {
+  const randomIndex = Math.floor(Math.random() * outfits.length);
+  currentOutfit = outfits[randomIndex];
+
+  correctOrder = [];
+  for (let i = 0; i < rows * cols; i++) correctOrder.push(i);
+
+  tiles = correctOrder.slice();
+  shuffle(tiles);
+
+  renderPuzzle();
+
+  puzzleEl.style.display = "grid";
+  resultImageEl.innerHTML = "";
+
+  timeLeft = 40.0;
+  updateTimerDisplay();
+  statusEl.textContent = '';
+  gameActive = true;
+  firstSelectedIndex = null;
+
+  if (timerId) clearInterval(timerId);
+  timerId = setInterval(() => {
+    if (!gameActive) return;
+    timeLeft -= 0.1;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      updateTimerDisplay();
+      endGame(false);
+    } else updateTimerDisplay();
+  }, 100);
+}
+
+function updateTimerDisplay() {
+  timerEl.textContent = `残り時間: ${timeLeft.toFixed(1)}秒`;
+}
+
+/* ★ ゲーム終了 → 2秒後に選択画面へ戻る */
+function endGame(success) {
+  gameActive = false;
+  clearInterval(timerId);
+  timerId = null;
+
+  puzzleEl.style.display = "none";
+
+  if (success) {
+    statusEl.textContent = '成功！正しく元に戻せました！';
+    resultImageEl.innerHTML = `<img src="image/imageB.png" width="300" height="300">`;
+  } else {
+    statusEl.textContent = '失敗…40秒以内に元に戻せませんでした。';
+    resultImageEl.innerHTML = `<img src="image/imageC.png" width="300" height="300">`;
+  }
+
+  /* ★ 4秒後に選択画面へ戻る */
+  setTimeout(() => {
+    gameContainer.style.display = "none";
+    selectLevelEl.style.display = "block";
+  }, 5000);
+}
+
+function renderPuzzle() {
+  puzzleEl.innerHTML = '';
+
+  for (let i = 0; i < tiles.length; i++) {
+    const tileIndex = tiles[i];
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.dataset.index = i;
+
+    const row = Math.floor(tileIndex / cols);
+    const col = tileIndex % cols;
+
+    const bgPosX = (col / (cols - 1)) * 100;
+    const bgPosY = (row / (rows - 1)) * 100;
+
+    tile.style.backgroundImage = `url("${currentOutfit}")`;
+    tile.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+    tile.style.backgroundPosition = `${bgPosX}% ${bgPosY}%`;
+
+    tile.addEventListener('click', onTileSelect);
+    tile.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      onTileSelect.call(tile, e);
+    }, { passive: false });
+
+    puzzleEl.appendChild(tile);
+  }
+}
+
+function onTileSelect(e) {
+  if (!gameActive) return;
+  const index = parseInt(this.dataset.index, 10);
+
+  if (firstSelectedIndex === null) {
+    firstSelectedIndex = index;
+    this.classList.add('selected');
+  } else if (firstSelectedIndex === index) {
+    this.classList.remove('selected');
+    firstSelectedIndex = null;
+  } else {
+    const firstTileEl = puzzleEl.children[firstSelectedIndex];
+    firstTileEl.classList.remove('selected');
+
+    swapTiles(firstSelectedIndex, index);
+    firstSelectedIndex = null;
+
+    checkComplete();
+  }
+}
+
+function swapTiles(i, j) {
+  [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
+
+  const tileElI = puzzleEl.children[i];
+  const tileElJ = puzzleEl.children[j];
+
+  const tileIndexI = tiles[i];
+  const tileIndexJ = tiles[j];
+
+  const rowI = Math.floor(tileIndexI / cols);
+  const colI = tileIndexI % cols;
+  const bgPosXI = (colI / (cols - 1)) * 100;
+  const bgPosYI = (rowI / (rows - 1)) * 100;
+
+  const rowJ = Math.floor(tileIndexJ / cols);
+  const colJ = tileIndexJ % cols;
+  const bgPosXJ = (colJ / (cols - 1)) * 100;
+  const bgPosYJ = (rowJ / (rows - 1)) * 100;
+
+  tileElI.style.backgroundPosition = `${bgPosXI}% ${bgPosYI}%`;
+  tileElJ.style.backgroundPosition = `${bgPosXJ}% ${bgPosYJ}%`;
+}
+
+function checkComplete() {
+  for (let i = 0; i < tiles.length; i++) {
+    if (tiles[i] !== correctOrder[i]) return;
+  }
+  endGame(true);
+}
+</script>
+
+</body>
+</html>
